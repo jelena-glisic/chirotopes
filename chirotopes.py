@@ -3,15 +3,36 @@
 from itertools import *
 from sys import argv
 from datetime import datetime
+import os
+
+#arguments
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("rank",type=int,help="rank")
+parser.add_argument("n",type=int,help="number of elements")
+parser.add_argument("-a","--all",action='store_true', help="enumerate all configurations")
+#parser.add_argument("--loadsignotope","-l",type=str,help="load signotope from file")
+parser.add_argument("--instance2file","-i2f",type=str,help="write instance to file")
+#parser.add_argument("--solutions2file","-s2f",type=str,help="write solutions to file")
+#parser.add_argument("--dontsolve",action='store_true',help="do not solve instance")
+parser.add_argument("--symmetry", action='store_true', help="enable symmetry breaking")
+parser.add_argument("--solver", choices=['cadical', 'pycosat'], default='cadical', help="SAT solver")
+parser.add_argument("--test", action='store_true', help="test examples")
+#parser.add_argument("--all", action='store_true', help="enumerate all solutions")
+args = parser.parse_args()
+
+print("args",args)
+
 
 #defining "input" variables
 
 #rank:
-r = 4
+r = args.rank
 R = list(range(r))
 R_plus_two = list(range(r+2))
 #number of points:
-n = 11
+n = args.n
 N = list(range(n))
 
 #helper functions
@@ -47,7 +68,7 @@ def find_perm_value(P,c):
       else: return -1
     i+=1
 
-
+#function to check 3-term Grassmann-Plucker relations
 def check_3gp(c):
   '''
   idea: two for loops to pick the two elements b1, b2
@@ -67,16 +88,14 @@ def check_3gp(c):
   return True
 
 #allowed patterns
-ap_file = input("please enter the file for allowed paterns: ")
-if ap_file == "no":
-    f = open(f"allowed_paterns{r}.txt","w")
+fp = f"allowed_patterns{r}"
+if not os.path.isfile(fp):
     allowed_patterns = [s for s in ["".join(s) for s in product('+-',repeat=(r+2)*(r+1)//2)] if check_3gp(s)]
-    for s in allowed_patterns: f.write(s+"\n")
-    f.close
-    print(len(allowed_patterns))
+    open(fp,"w").write("\n".join(allowed_patterns))
 else:
-    f = open(f"allowed_paterns{r}.txt","r")
-    allowed_patterns = [s.strip() for s in f.readlines()]
+    allowed_patterns = [s.strip() for s in open(fp).readlines()]
+
+print(f"there are {len(allowed_patterns)} allowed patterns")
 
 r_tuple_index = {}
 i=0
@@ -200,18 +219,21 @@ for X in permutations(N,r+1):
 	for s in [+1,-1]:
 		constraints.append([+s*((-1)**i)*var_sign(*I) for i,I in enumerate(combinations(X,r))])
 
+#testing for some examples
+if args.test: 
+    if r==3 and n==9: mutations=[(0,1,2),(0,5,6),(0,3,4),(0,7,8),(1,4,6),(1,5,8),(4,5,7),(3,6,8),(2,6,7),(2,3,5)]
 
-l=[[0,1,2],[0,5,6],[0,3,4],[0,7,8],[1,4,6],[1,5,8],[4,5,7],[3,6,8],[2,6,7],[2,3,5]]
-
-k=[(1,2,4,5),(1,2,8,9),(1,3,4,6),(1,3,7,8),(2,3,5,6),(2,3,7,9),(0,4,7,10),(0,5,8,10),(0,6,9,10)]
+    if r==4 and n==11: mutations=[(1,2,4,5),(1,2,8,9),(1,3,4,6),(1,3,7,8),(2,3,5,6),(2,3,7,9),(0,4,7,10),(0,5,8,10),(0,6,9,10)]
 
 
-for I in  combinations(N,r):
-    if I in k: 
-        constraints.append([var_flippable(*I)])
-    else: 
-        constraints.append([-var_flippable(*I)])
-if 1:
+    for I in  combinations(N,r):
+        if I in mutations: 
+            constraints.append([var_flippable(*I)])
+        else: 
+            constraints.append([-var_flippable(*I)])
+
+#symmetry braking             
+if args.symmetry:
     print("(3) wlog: 0,...,r-3 lie on the boundary of convex hull and others are sorted around (to break symmetries)",len(constraints))
     for i,j in combinations(range(r-2,n),2):
         constraints.append([var_sign(*range(r-2),i,j)])
@@ -233,6 +255,7 @@ for sol in solution_iterator:
   s = "".join("+" if var_sign(*I) in sol else "-" for I in combinations(N,r))
   outfile.write(s+'\n')
   print(f"solution {ct}: {s}")
+  if not args.all: break
 print(f"found {ct} solutions")
 if ct == 0: print ("no solutions")
 if outfile: print ("wrote solutions to file:","sols.txt")
