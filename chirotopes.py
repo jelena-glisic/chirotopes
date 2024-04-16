@@ -47,7 +47,7 @@ def find_perm_value(P,c):
       else: return -1
     i+=1
 
-#function to check 3-term Graßmann–Plucker relations
+#function to check 3-term Grassmann–Plucker relations
 def check_3gp(c):
   '''
   idea: two for loops to pick the two elements b1, b2
