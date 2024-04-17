@@ -17,7 +17,7 @@ parser.add_argument("--instance2file","-i2f",type=str,help="write instance to fi
 #parser.add_argument("--solutions2file","-s2f",type=str,help="write solutions to file")
 parser.add_argument("--dontsolve",action='store_true',help="do not solve instance")
 parser.add_argument("--symmetry", action='store_true', help="enable symmetry breaking")
-parser.add_argument("--solver", choices=['cadical', 'pycosat'], default='cadical', help="SAT solver")
+parser.add_argument("--solver", choices=['cadical', 'pycosat'], help="SAT solver")
 parser.add_argument("--test", action='store_true', help="test examples")
 #parser.add_argument("--all", action='store_true', help="enumerate all solutions")
 args = parser.parse_args()
@@ -255,9 +255,14 @@ if args.instance2file:
 
 	print ("Created CNF-file:",fp)
 
-if not args.dontsolve:
-  from pysat.solvers import Cadical153
-  solver = Cadical153()
+
+if args.solver == 'cadical':
+  try:
+    from pysat.solvers import Cadical153
+    solver = Cadical153()
+  except ImportError:
+    from pysat.solvers import Cadical # works for old version of pysat 
+    solver = Cadical()
 
   for c in constraints: solver.add_clause(c)
   solution_iterator = solver.enum_models()
@@ -272,4 +277,5 @@ if not args.dontsolve:
   print(f"found {ct} solutions")
   if ct == 0: print ("no solutions")
   if outfile: print ("wrote solutions to file:","sols.txt")
-else: print("instance will not be solved")
+else: 
+  print("instance will not be solved")
