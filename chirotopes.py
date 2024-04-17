@@ -15,7 +15,7 @@ parser.add_argument("-a","--all",action='store_true', help="enumerate all config
 #parser.add_argument("--loadsignotope","-l",type=str,help="load signotope from file")
 parser.add_argument("--instance2file","-i2f",type=str,help="write instance to file")
 #parser.add_argument("--solutions2file","-s2f",type=str,help="write solutions to file")
-#parser.add_argument("--dontsolve",action='store_true',help="do not solve instance")
+parser.add_argument("--dontsolve",action='store_true',help="do not solve instance")
 parser.add_argument("--symmetry", action='store_true', help="enable symmetry breaking")
 parser.add_argument("--solver", choices=['cadical', 'pycosat'], default='cadical', help="SAT solver")
 parser.add_argument("--test", action='store_true', help="test examples")
@@ -173,8 +173,7 @@ if 0:
 else: 
 
     print ("(*) each (rank+2)-tuple has one type")
-    for I in combinations(N,r+2):
-        constraints.append([+var_allowed_pattern(I,t) for t in allowed_patterns])
+    for I in combinations(N,r+2):constraints.append([+var_allowed_pattern(I,t) for t in allowed_patterns])
 
 
     print ("(*) assign allowed_pattern variables")
@@ -243,19 +242,34 @@ ct = 0
 
 outfile = open("sols.txt","w")
 
-from pysat.solvers import Cadical153
-solver = Cadical153()
+# write the cnf formula to a file
+if args.instance2file:
+	fp = args.instance2file
+	print ("write instance to file",fp)
+	
+	f = open(fp,"w")
+	f.write("p cnf "+str(_num_vars)+" "+str(len(constraints))+"\n")
+	for c in constraints:
+		f.write(" ".join(str(v) for v in c)+" 0\n")
+	f.close()
 
-for c in constraints: solver.add_clause(c)
-solution_iterator = solver.enum_models()
+	print ("Created CNF-file:",fp)
 
-for sol in solution_iterator:
-  sol = set(sol) # set allows more efficient queries
-  ct += 1
-  s = "".join("+" if var_sign(*I) in sol else "-" for I in combinations(N,r))
-  outfile.write(s+'\n')
-  print(f"solution {ct}: {s}")
-  if not args.all: break
-print(f"found {ct} solutions")
-if ct == 0: print ("no solutions")
-if outfile: print ("wrote solutions to file:","sols.txt")
+if not args.dontsolve:
+  from pysat.solvers import Cadical153
+  solver = Cadical153()
+
+  for c in constraints: solver.add_clause(c)
+  solution_iterator = solver.enum_models()
+
+  for sol in solution_iterator:
+    sol = set(sol) # set allows more efficient queries
+    ct += 1
+    s = "".join("+" if var_sign(*I) in sol else "-" for I in combinations(N,r))
+    outfile.write(s+'\n')
+    print(f"solution {ct}: {s}")
+    if not args.all: break
+  print(f"found {ct} solutions")
+  if ct == 0: print ("no solutions")
+  if outfile: print ("wrote solutions to file:","sols.txt")
+else: print("instance will not be solved")
