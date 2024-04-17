@@ -25,6 +25,10 @@ args = parser.parse_args()
 print("args",args)
 
 
+if not args.instance2file and not args.solver:
+    print("specify solver or path to write CNF")
+    exit()
+
 #defining "input" variables
 
 #rank:
