@@ -140,6 +140,9 @@ all_variables += [('allowed_pattern',(I,t)) for I in combinations(N,r+2) for t i
 all_variables += [('flippable_I_J',(I,J)) for J in combinations(N, r+2) for I in combinations(J,r)] #indicates whether r-tuple I is flippable in (r+2)-tuple
 all_variables += [('flippable',I)  for I in combinations(N,r)] # indicates whether (rank)-tuple is flipable
 
+if args.colorwithtwored or args.colorwithonered:
+    all_variables += [('red',i) for i in N]
+
 
 all_variables_index = {}
 
@@ -155,7 +158,7 @@ def var_allowed_pattern(*L): return var(('allowed_pattern',L))
 def var_pair_signs(*L): return var(('pair_signs',L))'''
 def var_flippable_I_J(*L): return var(('flippable_I_J',L))
 def var_flippable(*L): return var(('flippable',L))
-if args.color:
+if args.colorwithtwored or args.colorwithonered:
   def var_red(L): return var(('red',L))
 
 #making the constraints
@@ -267,9 +270,6 @@ if args.colorwithonered:
   # at least one element is red and one is not
   constraints.append([var_red(i) for i in range(n)])
   constraints.append([-var_red(i) for i in range(n)])
-  # at least two elements are red and at least two are not
-  literals_red = [[var_red(i) for i in range(n)]]
-  literals_notred=[[-var_red(i) for i in range(n)]]
   for I in combinations(N,r):
     for x,y in permutations(I,2):
       for s in [-1,1]:
@@ -280,8 +280,10 @@ if args.colorwithtwored:
   from pysat.card import *
   print ("(*) checking 2-coloring")
   # at least two elements are red and at least two are not
-  constraints.append(CardEnc.atleast(literals_red, bound=2))
-  constraints.append(CardEnc.atleast(literals_notred, bound=2))
+  literals_red = [var_red(i) for i in range(n)]
+  literals_notred=[-var_red(i) for i in range(n)]
+  constraints += CardEnc.atleast(literals_red, bound=2).clauses
+  constraints += CardEnc.atleast(literals_notred, bound=2).clauses
   for I in combinations(N,r):
     for x,y in permutations(I,2):
       for s in [-1,1]:
