@@ -124,43 +124,32 @@ def I_prime_to_I(I_prime,J):
 def string_flip(t,i): return t[:i]+('+' if t[i] == '-' else '-')+t[i+1:]
 allowed_patterns_with_flippable_I = {I:[t for t in allowed_patterns if string_flip(t,r_tuple_index[I]) in allowed_patterns] for I in combinations(R_plus_two,r)}
 
-_sign = {}
-def var_sign(*L):
-  if not L in _sign:
-    L0 = tuple(sorted(L))
-    inversions = len([(i,j) for i,j in combinations(L,2) if i>j])
-    _sign[L] = (-1)**inversions * var(('sign',L0))
-  return _sign[L]
+from pysat.formula import IDPool
+vpool = IDPool()
+var_sign_ = {I:vpool.id() for I in combinations(N,r)}
+_sign = set(var_sign_.keys())
+def var_sign(*I):
+  if not I in _sign:
+    I0 = tuple(sorted(I))
+    inversions = len([(i,j) for i,j in combinations(I,2) if i>j])
+    var_sign_[I] = (-1)**inversions * var_sign_[I0]
+  return var_sign_[I]
 
-#making the variables
-all_variables = []
-all_variables += [('sign',I) for I in combinations(N,r)]
-#all_variables += [('pair_signs',(J, i, p)) for p in ["++","--","+-","-+"] for J in combinations(N,r+2) for i in range(0,(r+1)*(r+2)//2-1)]
-all_variables += [('allowed_pattern',(I,t)) for I in combinations(N,r+2) for t in allowed_patterns] # indicates whether (rank+2)-tuple is of type t
-#all_variables += [('flippable_j',(I,j)) for I in combinations(N,r+2) for j in range(r+2)] # indicates whether, in (rank+2)-tuple, index j is flipable
-all_variables += [('flippable_I_J',(I,J)) for J in combinations(N, r+2) for I in combinations(J,r)] #indicates whether r-tuple I is flippable in (r+2)-tuple
-all_variables += [('flippable',I)  for I in combinations(N,r)] # indicates whether (rank)-tuple is flipable
+var_allowed_pattern_ = {(I,t): vpool.id() for I in combinations(N,r+2) for t in allowed_patterns}
+def var_allowed_pattern(*L): return var_allowed_pattern_[L]
+
+var_flippable_I_J_ = {(I,J):vpool.id() for J in combinations(N,r+2) for I in combinations(J,r)} 
+def var_flippable_I_J(*L): return var_flippable_I_J_[L]
+
+var_flippable_ ={I: vpool.id() for I in combinations(N,r)}
+def var_flippable(*L): return var_flippable_[L]
+
 
 if args.colorwithtwored or args.colorwithonered:
-    all_variables += [('red',i) for i in N]
+    var_red_ ={x: vpool.id() for x in N}
+    def var_red(x): return var_red_[x]
 
 
-all_variables_index = {}
-
-_num_vars = 0
-for v in all_variables:
-  _num_vars += 1
-  all_variables_index[v] = _num_vars
-
-def var(L):  return all_variables_index[L]
-
-def var_allowed_pattern(*L): return var(('allowed_pattern',L))
-'''attempt at bva variables
-def var_pair_signs(*L): return var(('pair_signs',L))'''
-def var_flippable_I_J(*L): return var(('flippable_I_J',L))
-def var_flippable(*L): return var(('flippable',L))
-if args.colorwithtwored or args.colorwithonered:
-  def var_red(L): return var(('red',L))
 
 #making the constraints
 constraints = []
@@ -280,8 +269,9 @@ if args.colorwithtwored:
   # at least two elements are red and at least two are not
   literals_red = [var_red(i) for i in range(n)]
   literals_notred=[-var_red(i) for i in range(n)]
-  constraints += CardEnc.atleast(literals_red, bound=2).clauses
-  constraints += CardEnc.atleast(literals_notred, bound=2).clauses
+  two_red = CardEnc.atleast(literals_red, bound=2).clauses
+  constraints += CardEnc.atleast(literals_red, bound=2, vpool=vpool).clauses
+  constraints += CardEnc.atleast(literals_notred, bound=2, vpool=vpool).clauses
   for I in combinations(N,r):
     for x,y in permutations(I,2):
       for s in [-1,1]:
@@ -290,7 +280,7 @@ if args.colorwithtwored:
 if not args.extendable:
   after_cnf = datetime.now()
   print(f"cnf was made in {after_cnf-start_time}")
-  print(f"{len(all_variables)} vars and {len(constraints)} constraints")
+  print(f"{vpool.top} vars and {len(constraints)} constraints")
       
 if args.extendable:
     print ("(*) checking extendability")
@@ -354,7 +344,7 @@ if args.test:
 
 
 start_solve = datetime.now()
-print ("start solving at {start_solve}")
+print (f"start solving at {start_solve}")
 ct = 0
 
 of = f"sols_{r}_{n}"
