@@ -140,9 +140,6 @@ all_variables += [('allowed_pattern',(I,t)) for I in combinations(N,r+2) for t i
 all_variables += [('flippable_I_J',(I,J)) for J in combinations(N, r+2) for I in combinations(J,r)] #indicates whether r-tuple I is flippable in (r+2)-tuple
 all_variables += [('flippable',I)  for I in combinations(N,r)] # indicates whether (rank)-tuple is flipable
 
-if args.color:
-    all_variables += [('red',i) for i in N]
-
 
 all_variables_index = {}
 
