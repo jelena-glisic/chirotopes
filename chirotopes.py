@@ -14,9 +14,16 @@ parser.add_argument("n",type=int,help="number of elements")
 parser.add_argument("-a","--all",action='store_true', help="enumerate all configurations")
 #parser.add_argument("--loadsignotope","-l",type=str,help="load signotope from file")
 parser.add_argument("--instance2file","-o",type=str,help="write instance to file")
+parser.add_argument("--extendable","-e",type=str,help="chirotope file for extension")
 #parser.add_argument("--solutions2file","-s2f",type=str,help="write solutions to file")
 parser.add_argument("--dontsolve",action='store_true',help="do not solve instance")
+parser.add_argument("--nomutations",action='store_true',help="no mutations")
+parser.add_argument("--isolatedone",action='store_true',help="no mutations at one")
+parser.add_argument("--isolatedonetwo", action='store_true', help="no mutations at one or two")
+parser.add_argument("--colorwithonered", action='store_true', help="checking for chirotopes without 2-colored mutations, at least one element red")
+parser.add_argument("--colorwithtwored", action='store_true', help="checking for chirotopes without 2-colored mutations, at least two elements red")
 parser.add_argument("--symmetry", action='store_true', help="enable symmetry breaking")
+parser.add_argument("--grassmanplucker", action='store_true', help="grassman-plucker")
 parser.add_argument("--solver", choices=['cadical', 'pycosat'], help="SAT solver")
 parser.add_argument("--test", action='store_true', help="test examples")
 #parser.add_argument("--all", action='store_true', help="enumerate all solutions")
@@ -127,10 +134,14 @@ def var_sign(*L):
 #making the variables
 all_variables = []
 all_variables += [('sign',I) for I in combinations(N,r)]
+#all_variables += [('pair_signs',(J, i, p)) for p in ["++","--","+-","-+"] for J in combinations(N,r+2) for i in range(0,(r+1)*(r+2)//2-1)]
 all_variables += [('allowed_pattern',(I,t)) for I in combinations(N,r+2) for t in allowed_patterns] # indicates whether (rank+2)-tuple is of type t
 #all_variables += [('flippable_j',(I,j)) for I in combinations(N,r+2) for j in range(r+2)] # indicates whether, in (rank+2)-tuple, index j is flipable
 all_variables += [('flippable_I_J',(I,J)) for J in combinations(N, r+2) for I in combinations(J,r)] #indicates whether r-tuple I is flippable in (r+2)-tuple
 all_variables += [('flippable',I)  for I in combinations(N,r)] # indicates whether (rank)-tuple is flipable
+
+if args.color:
+    all_variables += [('red',i) for i in N]
 
 
 all_variables_index = {}
@@ -143,14 +154,18 @@ for v in all_variables:
 def var(L):	return 1+all_variables_index[L]
 
 def var_allowed_pattern(*L): return var(('allowed_pattern',L))
+'''attempt at bva variables
+def var_pair_signs(*L): return var(('pair_signs',L))'''
 def var_flippable_I_J(*L): return var(('flippable_I_J',L))
 def var_flippable(*L): return var(('flippable',L))
+if args.color:
+  def var_red(L): return var(('red',L))
 
 #making the constraints
 constraints = []
 
 #def remove_jth(I,j): return I[:j]+I[j+1:]
-if 0:
+if args.grassmanplucker:
     # OM-bible, Theorem 3.6.2 (3-term grassmann pluecker relations)
     print("(1) compact exchange axioms",len(constraints))
     for X in permutations(N,r):
@@ -172,39 +187,53 @@ if 0:
                             if s2 != 0: C += [-s2*var_sign(y2,x2,*X_rest),-s2*var_sign(y1,x1,*X_rest)]
                             C += [-s0*var_sign(x1,x2,*X_rest),+s0*var_sign(y1,y2,*X_rest)]
                             constraints.append(C)
-    print(f"number of constraints is {len(constraints)}")
-
-else: 
-
-    print ("(*) each (rank+2)-tuple has one type")
-    for I in combinations(N,r+2):constraints.append([+var_allowed_pattern(I,t) for t in allowed_patterns])
+    #print(f"number of constraints is {len(constraints)}")
 
 
-    print ("(*) assign allowed_pattern variables")
-    for J in combinations(N,r+2):
-        for t in allowed_patterns:
-            tv = type_to_vector(t)
+print ("(*) each (rank+2)-tuple has one type")
+for I in combinations(N,r+2):constraints.append([+var_allowed_pattern(I,t) for t in allowed_patterns])
 
-            for I_prime in combinations(R_plus_two,r):
-                constraints.append([-var_allowed_pattern(J,t),+tv[r_tuple_index[I_prime]]*var_sign(*I_prime_to_I(I_prime,J))])
-            constraints.append([+var_allowed_pattern(J,t)]+[-tv[r_tuple_index[I_prime]]*var_sign(*I_prime_to_I(I_prime,J)) for I_prime in combinations(R_plus_two,r)])
-    print(f"number of constraints is {len(constraints)}")
 
-    print ("(*) assign flipable_I_J variables")
-    for J in combinations(N,r+2):
+print ("(*) assign allowed_pattern variables")
+for J in combinations(N,r+2):
+    for t in allowed_patterns:
+        tv = type_to_vector(t)
         for I_prime in combinations(R_plus_two,r):
-            I = tuple()
-            for i in range(r): I+=(J[I_prime[i]],)
-            constraints.append([-var_flippable_I_J(I,J)]+[+var_allowed_pattern(J,t) for t in allowed_patterns_with_flippable_I[I_prime]])
-            for t in allowed_patterns_with_flippable_I[I_prime]:
-                constraints.append([+var_flippable_I_J(I,J),-var_allowed_pattern(J,t)])
+            constraints.append([-var_allowed_pattern(J,t),+tv[r_tuple_index[I_prime]]*var_sign(*I_prime_to_I(I_prime,J))])
+        constraints.append([+var_allowed_pattern(J,t)]+[-tv[r_tuple_index[I_prime]]*var_sign(*I_prime_to_I(I_prime,J)) for I_prime in combinations(R_plus_two,r)])
+    '''old attempt at BVA to be revisited
+    for I1_prime in combinations(R_plus_two,r):
+        for I2_prime in combinations(R_plus_two,r):
+            I1 = I_prime_to_I(I1_prime,J)
+            I2 = I_prime_to_I(I2_prime, J)
+            i1 = r_tuple_index[I1_prime]
+            i2 = r_tuple_index[I2_prime]
+            if not i1 == i2:
+                for p in ["++","--","+-","-+"]:
+                    for t in allowed_patterns:
+                        if t[i1] == p[0] and t[i2] == p[1]:
+                            constraints.append([var_pair_signs(I1,I2,p),-var_allowed_pattern(J,t)])
+                    pv = type_to_vector(p)
+                    constraints.append([-var_pair_signs(I1,I2,p),pv[0]*var_sign(*I1)])
+                    constraints.append([-var_pair_signs(I1,I2,p),pv[1]*var_sign(*I2)])'''
+print(f"number of constraints is {len(constraints)}")
+
+print ("(*) assign flipable_I_J variables")
+for J in combinations(N,r+2):
+    for I_prime in combinations(R_plus_two,r):
+        I = tuple()
+        for i in range(r): I+=(J[I_prime[i]],)
+        constraints.append([-var_flippable_I_J(I,J)]+[+var_allowed_pattern(J,t) for t in allowed_patterns_with_flippable_I[I_prime]])
+        for t in allowed_patterns_with_flippable_I[I_prime]:
+            constraints.append([+var_flippable_I_J(I,J),-var_allowed_pattern(J,t)])
 
 
 print ("(*) assign flipable variables")
 i=1
 for I in combinations(N,r):
 	I_extensions = [tuple(sorted(set(K).union(set(I)))) for K in combinations(set(N).difference(set(I)),2)]
-	'''I_plus = (-1,)+I+(n,)
+	'''old implementation of extensions
+  I_plus = (-1,)+I+(n,)
 	I_extension_at_j_k = []
 	I_extension_at_j = {j:[I[:j]+(x,)+I[j:] for x in range(I_plus[j]+1,I_plus[j+1])] for j in range(r+1)}
 	for j in range(r+1):
@@ -213,20 +242,107 @@ for I in combinations(N,r):
 	for J in I_extensions:
 		constraints.append([-var_flippable(*I),+var_flippable_I_J(I,J)])
 	constraints.append([+var_flippable(*I)]+[-var_flippable_I_J(I,J) for J in I_extensions])
-
-'''for I in combinations(N,r):
-	if 1 in I: constraints.append([-var_flippable(*I)])'''
+    
 
 print("(2) the antipodal of a point in a simplex is forbidden (assume acyclic oriented matroid)")
 for X in permutations(N,r+1):
 	for s in [+1,-1]:
 		constraints.append([+s*((-1)**i)*var_sign(*I) for i,I in enumerate(combinations(X,r))])
+        
+#questions:
+
+if args.nomutations:
+    print ("(*) checking that there are no mutations")
+    for I in combinations(N,r): constraints.append([-var_flippable(*I)])
+
+if args.isolatedone:
+  print ("(*) checking that 1 is isolated")
+  for I in combinations(N,r):
+	  if 1 in I: constraints.append([-var_flippable(*I)])
+      
+if args.isolatedonetwo:
+  print ("(*) checking 1 and 2 isolated")
+  for I in combinations(N,r):
+	  if 1 in I or 2 in I: constraints.append([-var_flippable(*I)])
+      
+if args.colorwithonered:
+  print ("(*) checking 2-coloring")
+  # at least one element is red and one is not
+  constraints.append([var_red(i) for i in range(n)])
+  constraints.append([-var_red(i) for i in range(n)])
+  # at least two elements are red and at least two are not
+  literals_red = [[var_red(i) for i in range(n)]]
+  literals_notred=[[-var_red(i) for i in range(n)]]
+  for I in combinations(N,r):
+    for x,y in permutations(I,2):
+      for s in [-1,1]:
+        constraints.append([-var_flippable(*I),s*var_red(x), -s*var_red(y)])
+        
+
+if args.colorwithtwored:
+  from pysat.card import *
+  print ("(*) checking 2-coloring")
+  # at least two elements are red and at least two are not
+  constraints.append(CardEnc.atleast(literals_red, bound=2))
+  constraints.append(CardEnc.atleast(literals_notred, bound=2))
+  for I in combinations(N,r):
+    for x,y in permutations(I,2):
+      for s in [-1,1]:
+        constraints.append([-var_flippable(*I),s*var_red(x), -s*var_red(y)])
+
+      
+if args.extendable:
+    print ("(*) checking extendability")
+    fp = args.extendable
+    f = open(fp,"r")
+    for c in f.readlines():
+      ch = type_to_vector(c.strip())
+      constraints_ch = []
+      N_minus_one = range(n-1)
+      i = 0
+      for I in combinations(N_minus_one,r):
+          constraints_ch.append(ch[i]*[var_sign(*I)])
+          i+=1
+      for I in combinations(N_minus_one,r-1):
+          for J in combinations(N_minus_one,r-1):
+              if not set(I) & set(J):
+                  constraints_IJ = []
+                  I += (n-1,)
+                  J += (n-1,)
+                  constraints_IJ.append([var_flippable(*I)])
+                  constraints_IJ.append([var_flippable(*J)])
+                  try:
+                    from pysat.solvers import Cadical153
+                    solver = Cadical153()
+                  except ImportError:
+                    from pysat.solvers import Cadical # works for old version of pysat 
+                    solver = Cadical()
+                  for c in constraints+constraints_ch+constraints_IJ: solver.add_clause(c)
+                  solution_iterator = solver.enum_models()
+                  solution_file = f"solution_{r}_{n}_{I}_{J}.txt"
+                  ct = 0
+                  for sol in solution_iterator:
+                    sol = set(sol) # set allows more efficient queries
+                    ct += 1
+                    s = "".join("+" if var_sign(*I) in sol else "-" for I in combinations(N,r))
+                    solution_file.write(s+'\n')
+                    print(f"solution {ct}: {s}")
+                    break
+                  print(f"found {ct} solutions")
+                  if ct == 0: print ("no solutions")
+                  if solution_file: print ("wrote solutions to file:","sols.txt")
+                  
+    
 
 #testing for some examples
 if args.test: 
-    if r==3 and n==9: mutations=[(0,1,2),(0,5,6),(0,3,4),(0,7,8),(1,4,6),(1,5,8),(4,5,7),(3,6,8),(2,6,7),(2,3,5)]
+    if r==3 and n==9:
+        print ("(*) testing 3 9 instance")
+        mutations=[(0,1,2),(0,5,6),(0,3,4),(0,7,8),(1,4,6),(1,5,8),(4,5,7),(3,6,8),(2,6,7),(2,3,5)]
 
-    if r==4 and n==11: mutations=[(1,2,4,5),(1,2,8,9),(1,3,4,6),(1,3,7,8),(2,3,5,6),(2,3,7,9),(0,4,7,10),(0,5,8,10),(0,6,9,10)]
+    if r==4 and n==11:
+        print ("(*) testing 4 11 instance")
+        mutations=[(1,2,4,5),(1,2,8,9),(1,3,4,6),(1,3,7,8),(2,3,5,6),(2,3,7,9),(0,4,7,10),(0,5,8,10),(0,6,9,10)]
 
 
     for I in  combinations(N,r):
