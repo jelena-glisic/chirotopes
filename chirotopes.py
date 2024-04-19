@@ -149,10 +149,10 @@ all_variables_index = {}
 
 _num_vars = 0
 for v in all_variables:
-  all_variables_index[v] = _num_vars
   _num_vars += 1
+  all_variables_index[v] = _num_vars
 
-def var(L):  return 1+all_variables_index[L]
+def var(L):  return all_variables_index[L]
 
 def var_allowed_pattern(*L): return var(('allowed_pattern',L))
 '''attempt at bva variables
@@ -385,8 +385,9 @@ if args.instance2file:
   print ("Created CNF-file:",fp)
 
   f = open(fp+".vars","w")
-  for v in all_variables:
-    f.write(f"{all_variables_index[v]} -> {v}\n")
+  f.write(str({all_variables_index[v]:v for v in all_variables}))
+  #for v in all_variables:
+  #  f.write(f"{all_variables_index[v]}: {v}\n")
   f.close()
   print ("Created variable-file:",fp+".vars")
 
