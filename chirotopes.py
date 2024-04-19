@@ -359,7 +359,19 @@ if args.symmetry:
 print ("start solving")
 ct = 0
 
-outfile = open("sols.txt","w")
+of = f"sols_{r}_{n}"
+if args.nomutations:
+  of += "_nomutataions"
+if args.isolatedone:
+  of += "_isolatedone"
+if args.isolatedonetwo:
+  of += "_isolatedonetwo"
+if args.coloredwithonered:
+  of += "_colonered"
+if args.coloredwithtwored:
+  of += "_coltwored"
+of += ".txt"
+outfile = open(of,"w")
 
 # write the cnf formula to a file
 if args.instance2file:
