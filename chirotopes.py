@@ -24,6 +24,7 @@ parser.add_argument("--colorwithonered", action='store_true', help="checking for
 parser.add_argument("--colorwithtwored", action='store_true', help="checking for chirotopes without 2-colored mutations, at least two elements red")
 parser.add_argument("--symmetry", action='store_true', help="enable symmetry breaking")
 parser.add_argument("--grassmanplucker", action='store_true', help="grassman-plucker")
+parser.add_argument("--bva", action='store_true', help="enable bva")
 parser.add_argument("--solver", choices=['cadical', 'pycosat'], help="SAT solver")
 parser.add_argument("--test", action='store_true', help="test examples")
 #parser.add_argument("--all", action='store_true', help="enumerate all solutions")
@@ -151,8 +152,9 @@ if args.colorwithtwored or args.colorwithonered:
     var_red_ ={x: vpool.id() for x in N}
     def var_red(x): return var_red_[x]
 
-var_pair_signs_ = {(J,i,p):vpool.id() for p in ["++","--","+-","-+"] for J in combinations(N,r+2) for i in range(0,(r+1)*(r+2)//2-1)}
-def var_pair_signs(*L): return var_pair_signs_[L]
+if args.bva:
+  var_pair_signs_ = {(J,i,p):vpool.id() for p in ["++","--","+-","-+"] for J in combinations(N,r+2) for i in range(0,(r+1)*(r+2)//2-1)}
+  def var_pair_signs(*L): return var_pair_signs_[L]
 
 #making the constraints
 constraints = []
@@ -191,18 +193,20 @@ print ("(*) assign allowed_pattern variables")
 for J in combinations(N,r+2):
     for t in allowed_patterns:
         tv = type_to_vector(t)
-        #for I_prime in combinations(R_plus_two,r):
-        #    constraints.append([-var_allowed_pattern(J,t),+tv[r_tuple_index[I_prime]]*var_sign(*I_prime_to_I(I_prime,J))])
+        if not args.bva:
+          for I_prime in combinations(R_plus_two,r):
+              constraints.append([-var_allowed_pattern(J,t),+tv[r_tuple_index[I_prime]]*var_sign(*I_prime_to_I(I_prime,J))])
         constraints.append([+var_allowed_pattern(J,t)]+[-tv[r_tuple_index[I_prime]]*var_sign(*I_prime_to_I(I_prime,J)) for I_prime in combinations(R_plus_two,r)])
-    for i in range(0,(r+2)*(r+1)//2-1,2):
-      I = I_prime_to_I(r_tuples[i],J)
-      I_next = I_prime_to_I(r_tuples[i+1],J)
-      for p in ["++","--","+-","-+"]:
-        pv = type_to_vector(p)
-        constraints.append([-var_pair_signs(J,i,p),pv[0]*var_sign(*I)])
-        constraints.append([-var_pair_signs(J,i,p),pv[1]*var_sign(*I_next)])
-        for t in allowed_patterns:
-          if t[i] == p[0] and t[i+1] == p[1]: constraints.append([var_pair_signs(J,i,p),-var_allowed_pattern(J,t)])
+    if args.bva:
+      for i in range(0,(r+2)*(r+1)//2-1,2):
+        I = I_prime_to_I(r_tuples[i],J)
+        I_next = I_prime_to_I(r_tuples[i+1],J)
+        for p in ["++","--","+-","-+"]:
+          pv = type_to_vector(p)
+          constraints.append([-var_pair_signs(J,i,p),pv[0]*var_sign(*I)])
+          constraints.append([-var_pair_signs(J,i,p),pv[1]*var_sign(*I_next)])
+          for t in allowed_patterns:
+            if t[i] == p[0] and t[i+1] == p[1]: constraints.append([var_pair_signs(J,i,p),-var_allowed_pattern(J,t)])
 
 print ("(*) assign flipable_I_J variables")
 for J in combinations(N,r+2):
@@ -362,7 +366,6 @@ outfile = None
 if args.instance2file:
   fp = args.instance2file
   print ("write instance to file",fp)
-  
   f = open(fp,"w")
   f.write("p cnf "+str(vpool.top)+" "+str(len(constraints))+"\n")
   for c in constraints:
@@ -376,7 +379,7 @@ if args.instance2file:
   #for v in all_variables:
   #  f.write(f"{all_variables_index[v]}: {v}\n")
   #f.close()
-  print ("Created variable-file:",fp+".vars")
+  #print ("Created variable-file:",fp+".vars")
 
 
 
