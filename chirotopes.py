@@ -203,21 +203,6 @@ for J in combinations(N,r+2):
         constraints.append([-var_pair_signs(J,i,p),pv[1]*var_sign(*I_next)])
         for t in allowed_patterns:
           if t[i] == p[0] and t[i+1] == p[1]: constraints.append([var_pair_signs(J,i,p),-var_allowed_pattern(J,t)])
-    '''old attempt at BVA
-    for I1_prime in combinations(R_plus_two,r):
-        for I2_prime in combinations(R_plus_two,r):
-            I1 = I_prime_to_I(I1_prime,J)
-            I2 = I_prime_to_I(I2_prime, J)
-            i1 = r_tuple_index[I1_prime]
-            i2 = r_tuple_index[I2_prime]
-            if not i1 == i2:
-                for p in ["++","--","+-","-+"]:
-                    for t in allowed_patterns:
-                        if t[i1] == p[0] and t[i2] == p[1]:
-                            constraints.append([var_pair_signs(I1,I2,p),-var_allowed_pattern(J,t)])
-                    pv = type_to_vector(p)
-                    constraints.append([-var_pair_signs(I1,I2,p),pv[0]*var_sign(*I1)])
-                    constraints.append([-var_pair_signs(I1,I2,p),pv[1]*var_sign(*I2)])'''
 
 print ("(*) assign flipable_I_J variables")
 for J in combinations(N,r+2):
