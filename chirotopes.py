@@ -29,6 +29,7 @@ parser.add_argument("--test", action='store_true', help="test examples")
 #parser.add_argument("--all", action='store_true', help="enumerate all solutions")
 args = parser.parse_args()
 
+start_time = datetime.now()
 print("args",args)
 
 
@@ -216,7 +217,6 @@ for J in combinations(N,r+2):
                     pv = type_to_vector(p)
                     constraints.append([-var_pair_signs(I1,I2,p),pv[0]*var_sign(*I1)])
                     constraints.append([-var_pair_signs(I1,I2,p),pv[1]*var_sign(*I2)])'''
-print(f"number of constraints is {len(constraints)}")
 
 print ("(*) assign flipable_I_J variables")
 for J in combinations(N,r+2):
@@ -232,13 +232,6 @@ print ("(*) assign flipable variables")
 i=1
 for I in combinations(N,r):
 	I_extensions = [tuple(sorted(set(K).union(set(I)))) for K in combinations(set(N).difference(set(I)),2)]
-	'''old implementation of extensions
-  I_plus = (-1,)+I+(n,)
-	I_extension_at_j_k = []
-	I_extension_at_j = {j:[I[:j]+(x,)+I[j:] for x in range(I_plus[j]+1,I_plus[j+1])] for j in range(r+1)}
-	for j in range(r+1):
-		for k in range(j,r+1):
-			I_extension_at_j_k += list(set(tuple(sorted(J[:k]+(y,)+J[k:])) for J in I_extension_at_j[j] for y in range(I_plus[k]+1,I_plus[k+1]) if y not in J))'''
 	for J in I_extensions:
 		constraints.append([-var_flippable(*I),+var_flippable_I_J(I,J)])
 	constraints.append([+var_flippable(*I)]+[-var_flippable_I_J(I,J) for J in I_extensions])
@@ -248,7 +241,12 @@ print("(2) the antipodal of a point in a simplex is forbidden (assume acyclic or
 for X in permutations(N,r+1):
 	for s in [+1,-1]:
 		constraints.append([+s*((-1)**i)*var_sign(*I) for i,I in enumerate(combinations(X,r))])
-        
+
+#symmetry braking             
+if args.symmetry:
+    print("(3) wlog: 0,...,r-3 lie on the boundary of convex hull and others are sorted around (to break symmetries)",len(constraints))
+    for i,j in combinations(range(r-2,n),2):
+        constraints.append([var_sign(*range(r-2),i,j)])
 #questions:
 
 if args.nomutations:
@@ -289,6 +287,10 @@ if args.colorwithtwored:
       for s in [-1,1]:
         constraints.append([-var_flippable(*I),s*var_red(x), -s*var_red(y)])
 
+if not args.extendable:
+  after_cnf = datetime.now()
+  print(f"cnf was made in {after_cnf-start_time}")
+  print(f"{len(all_variables)} vars and {len(constraints)} constraints")
       
 if args.extendable:
     print ("(*) checking extendability")
@@ -350,13 +352,9 @@ if args.test:
         else: 
             constraints.append([-var_flippable(*I)])
 
-#symmetry braking             
-if args.symmetry:
-    print("(3) wlog: 0,...,r-3 lie on the boundary of convex hull and others are sorted around (to break symmetries)",len(constraints))
-    for i,j in combinations(range(r-2,n),2):
-        constraints.append([var_sign(*range(r-2),i,j)])
-	
-print ("start solving")
+
+start_solve = datetime.now()
+print ("start solving at {start_solve}")
 ct = 0
 
 of = f"sols_{r}_{n}"
@@ -366,12 +364,12 @@ if args.isolatedone:
   of += "_isolatedone"
 if args.isolatedonetwo:
   of += "_isolatedonetwo"
-if args.coloredwithonered:
+if args.colorwithonered:
   of += "_colonered"
-if args.coloredwithtwored:
+if args.colorwithtwored:
   of += "_coltwored"
 of += ".txt"
-outfile = open(of,"w")
+outfile = None
 
 # write the cnf formula to a file
 if args.instance2file:
@@ -387,7 +385,7 @@ if args.instance2file:
 	print ("Created CNF-file:",fp)
 
 
-if args.solver == 'cadical':
+if args.solver == 'cadical' and not args.extendable:
   try:
     from pysat.solvers import Cadical153
     solver = Cadical153()
@@ -402,11 +400,16 @@ if args.solver == 'cadical':
     sol = set(sol) # set allows more efficient queries
     ct += 1
     s = "".join("+" if var_sign(*I) in sol else "-" for I in combinations(N,r))
+    if not outfile: outfile = open(of,"w")
     outfile.write(s+'\n')
-    print(f"solution {ct}: {s}")
+    #print(f"solution {ct}: {s}")
     if not args.all: break
   print(f"found {ct} solutions")
+  end_solve = datetime.now()
+  print (f"finished solving at {end_solve}")
+  print(f"solving took {end_solve-start_solve}")
+  print(f"total time taken was {end_solve-start_time}")
   if ct == 0: print ("no solutions")
-  if outfile: print ("wrote solutions to file:","sols.txt")
+  if outfile: print ("wrote solutions to file:",of)
 else: 
   print("instance will not be solved")
