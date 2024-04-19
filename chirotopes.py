@@ -126,11 +126,11 @@ allowed_patterns_with_flippable_I = {I:[t for t in allowed_patterns if string_fl
 
 _sign = {}
 def var_sign(*L):
-	if not L in _sign:
-		L0 = tuple(sorted(L))
-		inversions = len([(i,j) for i,j in combinations(L,2) if i>j])
-		_sign[L] = (-1)**inversions * var(('sign',L0))
-	return _sign[L]
+  if not L in _sign:
+    L0 = tuple(sorted(L))
+    inversions = len([(i,j) for i,j in combinations(L,2) if i>j])
+    _sign[L] = (-1)**inversions * var(('sign',L0))
+  return _sign[L]
 
 #making the variables
 all_variables = []
@@ -149,10 +149,10 @@ all_variables_index = {}
 
 _num_vars = 0
 for v in all_variables:
-	all_variables_index[v] = _num_vars
-	_num_vars += 1
+  all_variables_index[v] = _num_vars
+  _num_vars += 1
 
-def var(L):	return 1+all_variables_index[L]
+def var(L):  return 1+all_variables_index[L]
 
 def var_allowed_pattern(*L): return var(('allowed_pattern',L))
 '''attempt at bva variables
@@ -231,16 +231,16 @@ for J in combinations(N,r+2):
 print ("(*) assign flipable variables")
 i=1
 for I in combinations(N,r):
-	I_extensions = [tuple(sorted(set(K).union(set(I)))) for K in combinations(set(N).difference(set(I)),2)]
-	for J in I_extensions:
-		constraints.append([-var_flippable(*I),+var_flippable_I_J(I,J)])
-	constraints.append([+var_flippable(*I)]+[-var_flippable_I_J(I,J) for J in I_extensions])
+  I_extensions = [tuple(sorted(set(K).union(set(I)))) for K in combinations(set(N).difference(set(I)),2)]
+  for J in I_extensions:
+    constraints.append([-var_flippable(*I),+var_flippable_I_J(I,J)])
+  constraints.append([+var_flippable(*I)]+[-var_flippable_I_J(I,J) for J in I_extensions])
     
 
 print("(2) the antipodal of a point in a simplex is forbidden (assume acyclic oriented matroid)")
 for X in permutations(N,r+1):
-	for s in [+1,-1]:
-		constraints.append([+s*((-1)**i)*var_sign(*I) for i,I in enumerate(combinations(X,r))])
+  for s in [+1,-1]:
+    constraints.append([+s*((-1)**i)*var_sign(*I) for i,I in enumerate(combinations(X,r))])
 
 #symmetry braking             
 if args.symmetry:
@@ -256,12 +256,12 @@ if args.nomutations:
 if args.isolatedone:
   print ("(*) checking that 1 is isolated")
   for I in combinations(N,r):
-	  if 1 in I: constraints.append([-var_flippable(*I)])
+    if 1 in I: constraints.append([-var_flippable(*I)])
       
 if args.isolatedonetwo:
   print ("(*) checking 1 and 2 isolated")
   for I in combinations(N,r):
-	  if 1 in I or 2 in I: constraints.append([-var_flippable(*I)])
+    if 1 in I or 2 in I: constraints.append([-var_flippable(*I)])
       
 if args.colorwithonered:
   print ("(*) checking 2-coloring")
@@ -373,16 +373,23 @@ outfile = None
 
 # write the cnf formula to a file
 if args.instance2file:
-	fp = args.instance2file
-	print ("write instance to file",fp)
-	
-	f = open(fp,"w")
-	f.write("p cnf "+str(_num_vars)+" "+str(len(constraints))+"\n")
-	for c in constraints:
-		f.write(" ".join(str(v) for v in c)+" 0\n")
-	f.close()
+  fp = args.instance2file
+  print ("write instance to file",fp)
+  
+  f = open(fp,"w")
+  f.write("p cnf "+str(_num_vars)+" "+str(len(constraints))+"\n")
+  for c in constraints:
+    f.write(" ".join(str(v) for v in c)+" 0\n")
+  f.close()
 
-	print ("Created CNF-file:",fp)
+  print ("Created CNF-file:",fp)
+
+  f = open(fp+".vars","w")
+  for v in all_variables:
+    f.write(f"{all_variables_index[v]} -> {v}\n")
+  f.close()
+  print ("Created variable-file:",fp+".vars")
+
 
 
 if args.solver == 'cadical' and not args.extendable:
