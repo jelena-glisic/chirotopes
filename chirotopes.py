@@ -391,6 +391,9 @@ if args.solve and not args.extendable:
 
   for c in constraints: solver.add_clause(c)
 
+  
+  found = {}
+
   #solution_iterator = solver.enum_models()
   #for sol in solution_iterator:
   while solver.solve():
@@ -404,7 +407,18 @@ if args.solve and not args.extendable:
     outfile.write(chi_str+'\n')
     if args.enumerate: print(f"solution {ct}: {chi_str}")
     if not args.all: break
-    solver.add_clause([-chi[I]*var_sign(*I) for I in combinations(N,r)])
+
+    # Manfred: code for debugging multiple solutions
+    #if chi_str in found:
+    #  print("found solution multiple times! difference:",[x for x in sol if -x in found[chi_str]])
+    #  exit()
+    #found[chi_str] = sol
+    
+    if 0:    
+      solver.add_clause([-x for x in sol])
+    else:
+      solver.add_clause([-chi[I]*var_sign(*I) for I in combinations(N,r)])
+
 
   print(f"found {ct} solutions")
   end_solve = datetime.now()
