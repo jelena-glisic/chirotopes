@@ -1,5 +1,6 @@
 from basics import *
 from ast import literal_eval
+import random
 
 import argparse
 parser = argparse.ArgumentParser()
@@ -7,6 +8,8 @@ parser.add_argument("cnf",type=str,help="cnf input file")
 parser.add_argument("proof",type=str,help="proof input file")
 parser.add_argument("merge",type=str,help="merge output file")
 parser.add_argument("--var",type=str,help="variables input file")
+parser.add_argument("--shuffle",action='store_true',help="shuffle proof")
+parser.add_argument("--checksomething",action='store_true',help="enter better name if it works out, otherwise delete me")
 parser.add_argument("--debug","-d",type=int,default=0,help="debug level")
 
 args = parser.parse_args()
@@ -26,6 +29,9 @@ else:
 	var = {}
 
 
+if args.debug >= 1: 
+	print("variables",var)
+
 
 def var_lookup(x,unnamed=None):
 	s = '+' if x > 0 else '-'
@@ -43,24 +49,43 @@ print("cadical should return 'UNSAT' for all cubes (i.e. learned clauses are cor
 
 stats = {}
 with open(args.merge,"w") as inccnf:
+
 	inccnf.write("p inccnf\n")
 
 	for c in cnf:
 		inccnf.write(" ".join(str(x) for x in c)+" 0\n")
 
-	for i,c in enumerate(proof):
+	if args.shuffle: random.shuffle(proof)
+	for i,c in enumerate(proof): # learned clauses
 		l = len(c)
 
 		if args.debug >= 2: 
 			#var = {x:var[x] for x in var if var[x][0] == 'S'}
-			c_text = [var_lookup(x) for x in c]
+			c_text = {var_lookup(x) for x in c}
 
 			if None not in c_text:
 				symbols = set(''.join(x[1:] for x in c_text))
-				if l <= 4 and l >= 3:
-					print(f"learned clause #{i}: {c} {c_text} ")
+				if l <= 3 and l >= 3:
+					print(f"interesting learned clause #{i}: {c} {c_text} ")
+
+					if args.checksomething:
+						# test whether it holds
+						try:
+							from pysat.solvers import Cadical153
+							solver = Cadical153()
+						except ImportError:
+							from pysat.solvers import Cadical # works for old version of pysat 
+							solver = Cadical()
+
+						for c in cnf+[[-x] for x in c]: solver.add_clause(c)
+						valid = solver.solve()
+						print("valid:",valid)
+						if valid == False: exit()
+
+
 
 		if l == 2:
+			# create inccnf to verify that all hold
 			inccnf.write("a "+" ".join(str(-x) for x in c)+" 0\n")
 
 

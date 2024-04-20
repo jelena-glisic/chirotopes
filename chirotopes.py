@@ -5,7 +5,11 @@ from sys import argv
 from datetime import datetime
 import os
 
-#arguments
+print0 = print
+time0 = datetime.now()
+def print(*X): 
+  time = datetime.now()
+  print0(f"[{time}]",*X)
 
 import argparse
 parser = argparse.ArgumentParser()
@@ -128,9 +132,11 @@ def I_prime_to_I(I_prime,J):
 def string_flip(t,i): return t[:i]+('+' if t[i] == '-' else '-')+t[i+1:]
 allowed_patterns_with_flippable_I = {I:[t for t in allowed_patterns if string_flip(t,r_tuple_index[I]) in allowed_patterns] for I in combinations(R_plus_two,r)}
 
+#def t2s(I): return ','.join(str(x) for x in I)
+
 from pysat.formula import IDPool
 vpool = IDPool()
-var_sign_ = {I:vpool.id() for I in combinations(N,r)}
+var_sign_ = {I:vpool.id(f'S_{I}') for I in combinations(N,r)}
 _sign = set(var_sign_.keys())
 def var_sign(*I):
   if not I in _sign:
@@ -139,13 +145,13 @@ def var_sign(*I):
     var_sign_[I] = (-1)**inversions * var_sign_[I0]
   return var_sign_[I]
 
-var_allowed_pattern_ = {(I,t): vpool.id() for I in combinations(N,r+2) for t in allowed_patterns}
+var_allowed_pattern_ = {(I,t): vpool.id(f'A_{I}_{t}') for I in combinations(N,r+2) for t in allowed_patterns}
 def var_allowed_pattern(*L): return var_allowed_pattern_[L]
 
-var_flippable_I_J_ = {(I,J):vpool.id() for J in combinations(N,r+2) for I in combinations(J,r)} 
+var_flippable_I_J_ = {(I,J):vpool.id(f'G_{I}_{J}') for J in combinations(N,r+2) for I in combinations(J,r)} 
 def var_flippable_I_J(*L): return var_flippable_I_J_[L]
 
-var_flippable_ ={I: vpool.id() for I in combinations(N,r)}
+var_flippable_ ={I: vpool.id(f'F_{I}') for I in combinations(N,r)}
 def var_flippable(*L): return var_flippable_[L]
 
 
@@ -154,6 +160,7 @@ if args.colorwithtwored or args.colorwithonered:
     def var_red(x): return var_red_[x]
 
 if args.bva:
+  # f'B_{J}_{i}_{p}'
   var_pair_signs_ = {(J,i,p):vpool.id() for p in ["++","--","+-","-+"] for J in combinations(N,r+2) for i in range(0,(r+1)*(r+2)//2-1)}
   def var_pair_signs(*L): return var_pair_signs_[L]
 
@@ -282,8 +289,8 @@ if args.colorwithtwored:
         constraints.append([-var_flippable(*I),s*var_red(x), -s*var_red(y)])
 
 if not args.extendable:
-  after_cnf = datetime.now()
-  print(f"cnf was made in {after_cnf-start_time}")
+  #after_cnf = datetime.now()
+  print(f"cnf was created")
   print(f"{vpool.top} vars and {len(constraints)} constraints")
       
 if args.extendable:
@@ -347,9 +354,6 @@ if args.test:
             constraints.append([-var_flippable(*I)])
 
 
-start_solve = datetime.now()
-print (f"start solving at {start_solve}")
-ct = 0
 
 of = f"sols_{r}_{n}"
 if args.nomutations:
@@ -381,6 +385,10 @@ if args.instance2file:
     f.close()
 
 
+start_solve = datetime.now()
+print (f"start solving")
+ct = 0
+
 if args.solve and not args.extendable:
   try:
     from pysat.solvers import Cadical153
@@ -391,9 +399,7 @@ if args.solve and not args.extendable:
 
   for c in constraints: solver.add_clause(c)
 
-  
   found = {}
-
   #solution_iterator = solver.enum_models()
   #for sol in solution_iterator:
   while solver.solve():
@@ -420,12 +426,13 @@ if args.solve and not args.extendable:
       solver.add_clause([-chi[I]*var_sign(*I) for I in combinations(N,r)])
 
 
-  print(f"found {ct} solutions")
+  print (f"finished solving")
   end_solve = datetime.now()
-  print (f"finished solving at {end_solve}")
   print(f"solving took {end_solve-start_solve}")
   print(f"total time taken was {end_solve-start_time}")
-  if ct == 0: print ("no solutions")
+
+  print(f"found {ct} solutions")
   if outfile: print ("wrote solutions to file:",of)
+
 else: 
   print("instance will not be solved")
