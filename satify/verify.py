@@ -26,11 +26,12 @@ else:
 	var = {}
 
 
+
 def var_lookup(x,unnamed=None):
 	s = '+' if x > 0 else '-'
 	a = abs(x)
 	if a in var:
-		return s+var[a]
+		return s+str(var[a])
 	elif unnamed:
 		return s+'unnamed'+str(a)
 	else:
@@ -53,9 +54,10 @@ with open(args.merge,"w") as inccnf:
 		if args.debug >= 2: 
 			#var = {x:var[x] for x in var if var[x][0] == 'S'}
 			c_text = [var_lookup(x) for x in c]
+
 			if None not in c_text:
 				symbols = set(''.join(x[1:] for x in c_text))
-				if 'S' in symbols and 'C' in symbols and l <= 6:
+				if l <= 4 and l >= 3:
 					print(f"learned clause #{i}: {c} {c_text} ")
 
 		if l == 2:

@@ -11,12 +11,11 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("rank",type=int,help="rank")
 parser.add_argument("n",type=int,help="number of elements")
-parser.add_argument("-a","--all",action='store_true', help="enumerate all configurations")
 #parser.add_argument("--loadsignotope","-l",type=str,help="load signotope from file")
 parser.add_argument("--instance2file","-o",type=str,help="write instance to file")
 parser.add_argument("--extendable","-e",type=str,help="chirotope file for extension")
 #parser.add_argument("--solutions2file","-s2f",type=str,help="write solutions to file")
-parser.add_argument("--dontsolve",action='store_true',help="do not solve instance")
+parser.add_argument("--solve",action='store_true',help="solve the instance")
 parser.add_argument("--nomutations",action='store_true',help="no mutations")
 parser.add_argument("--isolatedone",action='store_true',help="no mutations at one")
 parser.add_argument("--isolatedonetwo", action='store_true', help="no mutations at one or two")
@@ -25,16 +24,18 @@ parser.add_argument("--colorwithtwored", action='store_true', help="checking for
 parser.add_argument("--symmetry", action='store_true', help="enable symmetry breaking")
 parser.add_argument("--grassmanplucker", action='store_true', help="grassman-plucker")
 parser.add_argument("--bva", action='store_true', help="enable bva")
-parser.add_argument("--solver", choices=['cadical', 'pycosat'], help="SAT solver")
+parser.add_argument("--allowcyclic", action='store_true', help="by default, only enumerate acyclic chirotopes")
+#parser.add_argument("--solver", choices=['cadical', 'pycosat'], help="SAT solver")
 parser.add_argument("--test", action='store_true', help="test examples")
-#parser.add_argument("--all", action='store_true', help="enumerate all solutions")
+parser.add_argument("-a","--all",action='store_true', help="enumerate all configurations")
+parser.add_argument("--enumerate", action='store_true', help="print examples")
 args = parser.parse_args()
 
 start_time = datetime.now()
 print("args",args)
 
 
-if not args.instance2file and not args.solver:
+if not args.instance2file and not args.solve:
     print("specify solver or path to write CNF")
     exit()
 
@@ -227,10 +228,12 @@ for I in combinations(N,r):
   constraints.append([+var_flippable(*I)]+[-var_flippable_I_J(I,J) for J in I_extensions])
     
 
-print("(2) the antipodal of a point in a simplex is forbidden (assume acyclic oriented matroid)")
-for X in permutations(N,r+1):
-  for s in [+1,-1]:
-    constraints.append([+s*((-1)**i)*var_sign(*I) for i,I in enumerate(combinations(X,r))])
+if not args.allowcyclic:
+  print("(2) the antipodal of a point in a simplex is forbidden (assume acyclic oriented matroid)")
+  for X in permutations(N,r+1):
+    for s in [+1,-1]:
+      constraints.append([+s*((-1)**i)*var_sign(*I) for i,I in enumerate(combinations(X,r))])
+
 
 #symmetry braking             
 if args.symmetry:
@@ -365,25 +368,20 @@ outfile = None
 # write the cnf formula to a file
 if args.instance2file:
   fp = args.instance2file
-  print ("write instance to file",fp)
-  f = open(fp,"w")
-  f.write("p cnf "+str(vpool.top)+" "+str(len(constraints))+"\n")
-  for c in constraints:
-    f.write(" ".join(str(v) for v in c)+" 0\n")
-  f.close()
-
-  print ("Created CNF-file:",fp)
-
-  #f = open(fp+".vars","w")
-  #f.write(str({all_variables_index[v]:v for v in all_variables}))
-  #for v in all_variables:
-  #  f.write(f"{all_variables_index[v]}: {v}\n")
-  #f.close()
-  #print ("Created variable-file:",fp+".vars")
+  print ("write CNF to file:",fp)
+  with open(fp,"w") as f:
+    f.write("p cnf "+str(vpool.top)+" "+str(len(constraints))+"\n")
+    for c in constraints:
+      f.write(" ".join(str(v) for v in c)+" 0\n")
+    f.close()
+  fp_vars = fp+".vars"
+  print ("write variables to file:",fp_vars)
+  with open(fp_vars,"w") as f:
+    f.write(str(vpool.id2obj)+"\n")
+    f.close()
 
 
-
-if args.solver == 'cadical' and not args.extendable:
+if args.solve and not args.extendable:
   try:
     from pysat.solvers import Cadical153
     solver = Cadical153()
@@ -392,16 +390,22 @@ if args.solver == 'cadical' and not args.extendable:
     solver = Cadical()
 
   for c in constraints: solver.add_clause(c)
-  solution_iterator = solver.enum_models()
 
-  for sol in solution_iterator:
+  #solution_iterator = solver.enum_models()
+  #for sol in solution_iterator:
+  while solver.solve():
+    sol = set(solver.get_model())
+
     sol = set(sol) # set allows more efficient queries
     ct += 1
-    s = "".join("+" if var_sign(*I) in sol else "-" for I in combinations(N,r))
+    chi = {I:(+1 if var_sign(*I)  in sol else -1) for I in combinations(N,r)}
+    chi_str = "".join("+" if chi[I] == +1 else "-" for I in combinations(N,r))
     if not outfile: outfile = open(of,"w")
-    outfile.write(s+'\n')
-    #print(f"solution {ct}: {s}")
+    outfile.write(chi_str+'\n')
+    if args.enumerate: print(f"solution {ct}: {chi_str}")
     if not args.all: break
+    solver.add_clause([-chi[I]*var_sign(*I) for I in combinations(N,r)])
+
   print(f"found {ct} solutions")
   end_solve = datetime.now()
   print (f"finished solving at {end_solve}")
