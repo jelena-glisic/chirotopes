@@ -4,6 +4,7 @@ from itertools import *
 from sys import argv
 from datetime import datetime
 import os
+import math
 
 print0 = print
 time0 = datetime.now()
@@ -33,6 +34,7 @@ parser.add_argument("--allowcyclic", action='store_true', help="by default, only
 parser.add_argument("--test", action='store_true', help="test examples")
 parser.add_argument("-a","--all",action='store_true', help="enumerate all configurations")
 parser.add_argument("--enumerate", action='store_true', help="print examples")
+parser.add_argument("--signotope", action='store_true', help="solve for signotopes")
 args = parser.parse_args()
 
 start_time = datetime.now()
@@ -47,13 +49,18 @@ if not args.instance2file and not args.solve:
 
 #rank:
 r = args.rank
+if args.signotope: packet_size = r+1
+else: packet_size = r+2
+
 R = list(range(r))
-R_plus_two = list(range(r+2))
+packet_range = list(range(packet_size))
 #number of points:
 n = args.n
+packet_len = math.comb(packet_size,r)
 N = list(range(n))
 
 #helper functions
+def remove_jth(I,j): return I[:j]+I[j+1:]
 
 # chirotope string to list
 def type_to_vector(t): return [(+1 if x == '+' else -1) for x in t]
@@ -80,7 +87,7 @@ def find_perm_value(P,c):
   sign = perm_sign(P,I)
   vector = type_to_vector(c)
   i = 0
-  for J in combinations(R_plus_two,r):
+  for J in combinations(packet_range,r):
     if I == J:
       if vector[i]==sign: return 1
       else: return -1
@@ -94,10 +101,10 @@ def check_3gp(c):
   and we check the relation for any permutation of a
   CURRENTLY 384 PATTERNS
   '''
-  for i in R_plus_two:
-    for j in R_plus_two:
+  for i in packet_range:
+    for j in packet_range:
       if not i==j:
-        r = tuple(set(R_plus_two).difference(set([i,j])))
+        r = tuple(set(packet_range).difference(set([i,j])))
         for P in permutations(r):
           if find_perm_value((i,)+P[1:],c)==find_perm_value((P[0],j)+P[2:],c)\
           and find_perm_value((j,)+P[1:],c)==find_perm_value((i,P[0])+P[2:],c):
@@ -105,10 +112,12 @@ def check_3gp(c):
               return False
   return True
 
-#allowed patterns
-fp = f"allowed_patterns{r}"
+
+if args.signotope: fp = f"allowed_patterns_signotopes{r}"
+else: fp = f"allowed_patterns{r}"
 if not os.path.isfile(fp):
-    allowed_patterns = [s for s in ["".join(s) for s in product('+-',repeat=(r+2)*(r+1)//2)] if check_3gp(s)]
+    if args.signotope: allowed_patterns=[s for s in ["".join(s) for s in product('+-',repeat=packet_size)] if s.count('+-')+s.count('-+') <= 1]
+    else: allowed_patterns = [s for s in ["".join(s) for s in product('+-',repeat=(packet_size)*(packet_size-1)//2)] if check_3gp(s)]
     open(fp,"w").write("\n".join(allowed_patterns))
 else:
     allowed_patterns = [s.strip() for s in open(fp).readlines()]
@@ -118,7 +127,7 @@ print(f"there are {len(allowed_patterns)} allowed patterns")
 r_tuple_index = {}
 r_tuples = []
 i=0
-for I in combinations(R_plus_two,r):
+for I in combinations(packet_range,r):
   r_tuple_index[I] = i
   r_tuples.append(I)
   i+=1
@@ -130,7 +139,7 @@ def I_prime_to_I(I_prime,J):
 
 #flips
 def string_flip(t,i): return t[:i]+('+' if t[i] == '-' else '-')+t[i+1:]
-allowed_patterns_with_flippable_I = {I:[t for t in allowed_patterns if string_flip(t,r_tuple_index[I]) in allowed_patterns] for I in combinations(R_plus_two,r)}
+allowed_patterns_with_flippable_I = {I:[t for t in allowed_patterns if string_flip(t,r_tuple_index[I]) in allowed_patterns] for I in combinations(packet_range,r)}
 
 #def t2s(I): return ','.join(str(x) for x in I)
 
@@ -145,10 +154,10 @@ def var_sign(*I):
     var_sign_[I] = (-1)**inversions * var_sign_[I0]
   return var_sign_[I]
 
-var_allowed_pattern_ = {(I,t): vpool.id(f'A_{I}_{t}') for I in combinations(N,r+2) for t in allowed_patterns}
+var_allowed_pattern_ = {(I,t): vpool.id(f'A_{I}_{t}') for I in combinations(N,packet_size) for t in allowed_patterns}
 def var_allowed_pattern(*L): return var_allowed_pattern_[L]
 
-var_flippable_I_J_ = {(I,J):vpool.id(f'G_{I}_{J}') for J in combinations(N,r+2) for I in combinations(J,r)} 
+var_flippable_I_J_ = {(I,J):vpool.id(f'G_{I}_{J}') for J in combinations(N,packet_size) for I in combinations(J,r)} 
 def var_flippable_I_J(*L): return var_flippable_I_J_[L]
 
 var_flippable_ ={I: vpool.id(f'F_{I}') for I in combinations(N,r)}
@@ -159,9 +168,21 @@ if args.colorwithtwored or args.colorwithonered:
     var_red_ ={x: vpool.id() for x in N}
     def var_red(x): return var_red_[x]
 
-if args.bva:
+if args.bva and not args.signotope:
   # f'B_{J}_{i}_{p}'
-  var_pair_signs_ = {(J,i,p):vpool.id() for p in ["++","--","+-","-+"] for J in combinations(N,r+2) for i in range(0,(r+1)*(r+2)//2-1)}
+  var_pair_signs_ = {(J,i,p):vpool.id() for p in ["++","--","+-","-+"] for J in combinations(N,packet_size) for i in range(0,packet_len-1,2)}
+  def var_pair_signs(*L): return var_pair_signs_[L]
+
+if args.bva and args.signotope:
+  if packet_size%2==0: var_pair_signs_ = {(J,i,p):vpool.id() for p in ["++","--"] for J in combinations(N,packet_size) for i in range(0,packet_len-1,2)}
+  else:
+    var_pair_signs_ = {}
+    for J in combinations(N,packet_size):
+       var_pair_signs_[(J,0,"+++")] = vpool.id()
+       var_pair_signs_[(J,0,"---")] = vpool.id()
+       for i in range(3,packet_len-1,2):
+          var_pair_signs_[(J,i,"++")] = vpool.id()
+          var_pair_signs_[(J,i,"--")] = vpool.id()
   def var_pair_signs(*L): return var_pair_signs_[L]
 
 #making the constraints
@@ -194,19 +215,19 @@ if args.grassmanplucker:
 
 
 print ("(*) each (rank+2)-tuple has one type")
-for I in combinations(N,r+2):constraints.append([+var_allowed_pattern(I,t) for t in allowed_patterns])
+for I in combinations(N,packet_size):constraints.append([+var_allowed_pattern(I,t) for t in allowed_patterns])
 
 
 print ("(*) assign allowed_pattern variables")
-for J in combinations(N,r+2):
+for J in combinations(N,packet_size):
     for t in allowed_patterns:
         tv = type_to_vector(t)
         if not args.bva:
-          for I_prime in combinations(R_plus_two,r):
+          for I_prime in combinations(packet_range,r):
               constraints.append([-var_allowed_pattern(J,t),+tv[r_tuple_index[I_prime]]*var_sign(*I_prime_to_I(I_prime,J))])
-        constraints.append([+var_allowed_pattern(J,t)]+[-tv[r_tuple_index[I_prime]]*var_sign(*I_prime_to_I(I_prime,J)) for I_prime in combinations(R_plus_two,r)])
-    if args.bva:
-      for i in range(0,(r+2)*(r+1)//2-1,2):
+        constraints.append([+var_allowed_pattern(J,t)]+[-tv[r_tuple_index[I_prime]]*var_sign(*I_prime_to_I(I_prime,J)) for I_prime in combinations(packet_range,r)])
+    if args.bva and not args.signotope:
+      for i in range(0,packet_len-1,2):
         I = I_prime_to_I(r_tuples[i],J)
         I_next = I_prime_to_I(r_tuples[i+1],J)
         for p in ["++","--","+-","-+"]:
@@ -215,12 +236,38 @@ for J in combinations(N,r+2):
           constraints.append([-var_pair_signs(J,i,p),pv[1]*var_sign(*I_next)])
           for t in allowed_patterns:
             if t[i] == p[0] and t[i+1] == p[1]: constraints.append([var_pair_signs(J,i,p),-var_allowed_pattern(J,t)])
-
+    if args.bva and args.signotope:
+      I_fst = I_prime_to_I(r_tuples[0],J)
+      I_snd = I_prime_to_I(r_tuples[1],J)
+      if packet_size%2==1:
+        I_trd = I_prime_to_I(r_tuples[2],J)
+        start = 3
+        constraints.append([-var_pair_signs(J,0,"+++"),var_sign(*I_fst)])
+        constraints.append([-var_pair_signs(J,0,"+++"),var_sign(*I_snd)])
+        constraints.append([-var_pair_signs(J,0,"+++"),var_sign(*I_trd)])
+        constraints.append([-var_pair_signs(J,0,"---"),-var_sign(*I_fst)])
+        constraints.append([-var_pair_signs(J,0,"---"),-var_sign(*I_snd)])
+        constraints.append([-var_pair_signs(J,0,"---"),-var_sign(*I_trd)])
+      else:
+        start=2
+        constraints.append([-var_pair_signs(J,0,"++"),var_sign(*I_fst)])
+        constraints.append([-var_pair_signs(J,0,"++"),var_sign(*I_snd)])
+        constraints.append([-var_pair_signs(J,0,"--"),-var_sign(*I_fst)])
+        constraints.append([-var_pair_signs(J,0,"--"),-var_sign(*I_snd)])
+      for i in range(start,packet_len-1,2):
+        I = I_prime_to_I(r_tuples[i],J)
+        I_next = I_prime_to_I(r_tuples[i+1],J)
+        for p in ["++","--"]:
+          pv = type_to_vector(p)
+          constraints.append([-var_pair_signs(J,i,p),pv[0]*var_sign(*I)])
+          constraints.append([-var_pair_signs(J,i,p),pv[1]*var_sign(*I_next)])
+          for t in allowed_patterns:
+            if t[i] == p[0] and t[i+1] == p[1]: constraints.append([var_pair_signs(J,i,p),-var_allowed_pattern(J,t)])
+            
 print ("(*) assign flipable_I_J variables")
-for J in combinations(N,r+2):
-    for I_prime in combinations(R_plus_two,r):
-        I = tuple()
-        for i in range(r): I+=(J[I_prime[i]],)
+for J in combinations(N,packet_size):
+    for I_prime in combinations(packet_range,r):
+        I = I_prime_to_I(I_prime,J)
         constraints.append([-var_flippable_I_J(I,J)]+[+var_allowed_pattern(J,t) for t in allowed_patterns_with_flippable_I[I_prime]])
         for t in allowed_patterns_with_flippable_I[I_prime]:
             constraints.append([+var_flippable_I_J(I,J),-var_allowed_pattern(J,t)])
@@ -229,7 +276,8 @@ for J in combinations(N,r+2):
 print ("(*) assign flipable variables")
 i=1
 for I in combinations(N,r):
-  I_extensions = [tuple(sorted(set(K).union(set(I)))) for K in combinations(set(N).difference(set(I)),2)]
+  if args.signotope: I_extensions = [tuple(sorted(set(K).union(set(I)))) for K in combinations(set(N).difference(set(I)),1)]
+  else: I_extensions = [tuple(sorted(set(K).union(set(I)))) for K in combinations(set(N).difference(set(I)),2)]
   for J in I_extensions:
     constraints.append([-var_flippable(*I),+var_flippable_I_J(I,J)])
   constraints.append([+var_flippable(*I)]+[-var_flippable_I_J(I,J) for J in I_extensions])
@@ -242,7 +290,7 @@ if not args.allowcyclic:
       constraints.append([+s*((-1)**i)*var_sign(*I) for i,I in enumerate(combinations(X,r))])
 
 
-#symmetry braking             
+#symmetry breaking             
 if args.symmetry:
     print("(3) wlog: 0,...,r-3 lie on the boundary of convex hull and others are sorted around (to break symmetries)",len(constraints))
     for i,j in combinations(range(r-2,n),2):
@@ -424,6 +472,7 @@ if args.solve and not args.extendable:
       solver.add_clause([-x for x in sol])
     else:
       solver.add_clause([-chi[I]*var_sign(*I) for I in combinations(N,r)])
+
 
 
   print (f"finished solving")
